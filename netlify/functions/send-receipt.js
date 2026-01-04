@@ -63,8 +63,8 @@ exports.handler = async (event) => {
     };
   }
 
-  const apiKey = Netlify.env.get("RESEND_API_KEY");
-  const from = Netlify.env.get("RESEND_FROM");
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM;
 
   if (!apiKey || !from) {
     return {
