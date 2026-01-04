@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import BaseWidget from './BaseWidget'
+import { getCookie, setCookie } from '../utils/cookies'
 
 /* eslint-disable react/prop-types */
 export default function AmountSplitWidget({ widget }) {
   const [amountInput, setAmountInput] = useState(() => widget?.settings?.amount || '')
+
+  useEffect(() => {
+    const cookieAmount = getCookie('houseStackAmount')
+    const nextValue = widget?.settings?.amount || cookieAmount || ''
+    setAmountInput(nextValue)
+    if (nextValue !== widget?.settings?.amount) {
+      widget?.onSettingsChange?.({ amount: nextValue })
+    }
+  }, [])
 
   useEffect(() => {
     const nextValue = widget?.settings?.amount ?? ''
@@ -28,6 +38,7 @@ export default function AmountSplitWidget({ widget }) {
   const handleAmountChange = (event) => {
     const nextValue = event.target.value
     setAmountInput(nextValue)
+    setCookie('houseStackAmount', nextValue)
     widget?.onSettingsChange?.({ amount: nextValue })
   }
 

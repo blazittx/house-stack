@@ -8,6 +8,8 @@ export default function RecipientEmailsWidget({ widget }) {
     recipientOne: widget?.settings?.recipientOne || '',
     recipientTwo: widget?.settings?.recipientTwo || '',
   }))
+  const [isSending, setIsSending] = useState(false)
+  const [sendStatus, setSendStatus] = useState('')
 
   useEffect(() => {
     const cookieRecipients = {
@@ -36,6 +38,7 @@ export default function RecipientEmailsWidget({ widget }) {
 
   const updateRecipient = (field) => (event) => {
     const nextValue = event.target.value
+    setSendStatus('')
     setRecipientsState((prev) => {
       const next = { ...prev, [field]: nextValue }
       if (field === 'recipientOne') setCookie('houseStackRecipientOneEmail', next.recipientOne)
@@ -44,6 +47,47 @@ export default function RecipientEmailsWidget({ widget }) {
       return next
     })
   }
+
+  const handleSend = async () => {
+    if (recipients.length === 0 || isSending) return
+    setIsSending(true)
+    setSendStatus('')
+
+    const amountRaw = getCookie('houseStackAmount')
+    const amountValue = Number.parseFloat(amountRaw.replace(',', '.'))
+    const swishNumber = getCookie('houseStackSwishNumber')
+    const swishName = getCookie('houseStackSwishName')
+    const swishMessage = getCookie('houseStackSwishMessage')
+
+    try {
+      const response = await fetch('/.netlify/functions/send-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipients,
+          amount: Number.isFinite(amountValue) ? amountValue : null,
+          swishNumber,
+          swishName,
+          swishMessage,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to send')
+      }
+      setSendStatus('Sent! Check your inbox.')
+    } catch (error) {
+      setSendStatus(error.message || 'Failed to send. Try again.')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const amountRaw = getCookie('houseStackAmount')
+  const parsedAmount = Number.parseFloat(amountRaw.replace(',', '.'))
+  const swishNumber = getCookie('houseStackSwishNumber')
+  const canSend = recipients.length > 0 && Number.isFinite(parsedAmount) && parsedAmount > 0 && swishNumber
 
   return (
     <BaseWidget padding="1.25rem">
@@ -100,9 +144,9 @@ export default function RecipientEmailsWidget({ widget }) {
           </span>
           <button
             type="button"
-            disabled={recipients.length === 0}
+            disabled={!canSend || isSending}
             style={{
-              background: recipients.length === 0 ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.15)',
+              background: !canSend || isSending ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.15)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
               color: 'canvasText',
               padding: '0.35rem 0.7rem',
@@ -111,13 +155,26 @@ export default function RecipientEmailsWidget({ widget }) {
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               fontFamily: 'inherit',
-              cursor: recipients.length === 0 ? 'not-allowed' : 'pointer',
+              cursor: !canSend || isSending ? 'not-allowed' : 'pointer',
             }}
-            onClick={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.preventDefault()
+              handleSend()
+            }}
           >
-            Send requests
+            {isSending ? 'Sending...' : 'Send requests'}
           </button>
         </div>
+        {!canSend && (
+          <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>
+            Add recipients, amount, and Swish number to enable sending.
+          </span>
+        )}
+        {sendStatus && (
+          <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+            {sendStatus}
+          </span>
+        )}
       </div>
     </BaseWidget>
   )
