@@ -14,6 +14,7 @@ const buildEmailHtml = ({
   swishName,
   swishMessage,
   swishLink,
+  swishWebLink,
 }) => {
   const safeNumber = escapeHtml(swishNumber);
   const safeName = escapeHtml(swishName);
@@ -21,9 +22,9 @@ const buildEmailHtml = ({
   const safeAmount = Number.isFinite(amount) ? amount.toFixed(2) : "";
   const safePerPerson = Number.isFinite(perPerson) ? perPerson.toFixed(2) : "";
 
-  const paySection = swishLink
+  const paySection = swishWebLink || swishLink
     ? `<a href="${escapeHtml(
-        swishLink
+        swishWebLink || swishLink
       )}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#0b0b0b;color:#ffffff;text-decoration:none;border:1px solid #222222;">Pay with Swish</a>`
     : `<span style="color:#666666;">Open Swish and pay ${
         safePerPerson || safeAmount
@@ -50,18 +51,28 @@ const buildEmailHtml = ({
         }</td></tr>
       </table>
       <div style="margin-top:16px;">${paySection}</div>
-      <p style="margin-top:16px;color:#888888;font-size:12px;">If the button does not work, open Swish manually and enter the details above.</p>
+      <p style="margin-top:16px;color:#888888;font-size:12px;">If the button does not work, open Swish manually and enter the details above. ${
+        swishLink ? `App link: ${escapeHtml(swishLink)}` : ""
+      }</p>
     </div>
   `;
 };
 
-const buildSwishLink = ({ amount, swishNumber, swishMessage }) => {
+const buildSwishLinks = ({ amount, swishNumber, swishMessage, swishLink }) => {
   const params = new URLSearchParams();
   if (swishNumber) params.set("payee", swishNumber);
   if (Number.isFinite(amount)) params.set("amount", amount.toFixed(2));
   if (swishMessage) params.set("message", swishMessage);
   const query = params.toString();
-  return query ? `swish://payment?${query}` : "swish://payment";
+  const appLink = query ? `swish://payment?${query}` : "";
+  const webLink = query ? `https://app.swish.nu/1/p/sw/?${query}` : "";
+  if (swishLink && /^https?:\/\//i.test(swishLink)) {
+    return { swishLink, swishWebLink: swishLink };
+  }
+  if (swishLink && /^swish:\/\//i.test(swishLink)) {
+    return { swishLink, swishWebLink: webLink };
+  }
+  return { swishLink: appLink, swishWebLink: webLink };
 };
 
 exports.handler = async (event) => {
@@ -97,7 +108,12 @@ exports.handler = async (event) => {
   const swishNumber = payload.swishNumber || "";
   const swishName = payload.swishName || "";
   const swishMessage = payload.swishMessage || "";
-  const swishLink = payload.swishLink || buildSwishLink({ amount, swishNumber, swishMessage });
+  const { swishLink, swishWebLink } = buildSwishLinks({
+    amount,
+    swishNumber,
+    swishMessage,
+    swishLink: payload.swishLink || "",
+  });
 
   if (!recipients.length) {
     return {
@@ -116,6 +132,7 @@ exports.handler = async (event) => {
     swishName,
     swishMessage,
     swishLink,
+    swishWebLink,
   });
 
   const text = [
@@ -127,7 +144,7 @@ exports.handler = async (event) => {
       : null,
     swishNumber ? `Swish number: ${swishNumber}` : null,
     swishMessage ? `Message: ${swishMessage}` : null,
-    swishLink ? `Pay: ${swishLink}` : null,
+    swishWebLink ? `Pay: ${swishWebLink}` : swishLink ? `Pay: ${swishLink}` : null,
   ]
     .filter(Boolean)
     .join("\n");
