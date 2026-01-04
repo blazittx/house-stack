@@ -40,7 +40,7 @@ export default function SwishDetailsWidget({ widget }) {
       if (field === 'swishNumber') setCookie('houseStackSwishNumber', next.swishNumber)
       if (field === 'swishName') setCookie('houseStackSwishName', next.swishName)
       if (field === 'swishMessage') setCookie('houseStackSwishMessage', next.swishMessage)
-      widget?.onSettingsChange?.(next)
+      widget?.onSettingsChange?.(next) 
       return next
     })
   }
