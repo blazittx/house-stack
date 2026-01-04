@@ -14,6 +14,8 @@ const buildEmailHtml = ({
   swishName,
   swishMessage,
   swishLink,
+  requestId,
+  qrImageBase64,
 }) => {
   const safeNumber = escapeHtml(swishNumber);
   const safeName = escapeHtml(swishName);
@@ -21,13 +23,12 @@ const buildEmailHtml = ({
   const safeAmount = Number.isFinite(amount) ? amount.toFixed(2) : "";
   const safePerPerson = Number.isFinite(perPerson) ? perPerson.toFixed(2) : "";
 
-  const paySection = swishLink
-    ? `<a href="${escapeHtml(
-        swishLink
-      )}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#0b0b0b;color:#ffffff;text-decoration:none;border:1px solid #222222;">Pay with Swish</a>`
-    : `<span style="color:#666666;">Open Swish and pay ${
-        safePerPerson || safeAmount
-      } SEK to ${safeNumber}.</span>`;
+  const qrSection = qrImageBase64
+    ? `<div style="margin-top:16px;text-align:center;">
+        <img src="data:image/png;base64,${qrImageBase64}" alt="Swish QR code" width="220" height="220" style="display:inline-block;border:1px solid #eeeeee;border-radius:12px;"/>
+        <div style="margin-top:8px;color:#666666;font-size:12px;">Scan this QR code with the Swish app.</div>
+      </div>`
+    : "";
 
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111111;">
@@ -49,33 +50,140 @@ const buildEmailHtml = ({
           safeMessage || "—"
         }</td></tr>
       </table>
-      <div style="margin-top:16px;">${paySection}</div>
-      <p style="margin-top:16px;color:#888888;font-size:12px;">If the button does not work, open Swish manually and enter the details above. ${
+      ${qrSection || ""}
+      <p style="margin-top:16px;color:#888888;font-size:12px;">If the QR code does not work, open Swish manually and enter the details above. ${
         swishLink ? `App link: ${escapeHtml(swishLink)}` : ""
-      }</p>
+      }${requestId ? ` Request ID: ${escapeHtml(requestId)}` : ""}</p>
     </div>
   `;
 };
 
-const buildSwishLink = ({ amount, swishNumber, swishMessage, swishLink }) => {
-  if (swishLink && /^swish:\/\//i.test(swishLink)) {
-    return swishLink;
-  }
+const https = require("https");
+const { randomBytes, randomUUID } = require("crypto");
+
+const createInstructionUUID = () =>
+  randomBytes(16).toString("hex").toUpperCase();
+
+const buildPaymentRequestLink = ({ token, callbackUrl }) => {
+  const params = new URLSearchParams();
+  params.set("token", token);
+  if (callbackUrl) params.set("callbackurl", callbackUrl);
+  return `swish://paymentrequest?${params.toString()}`;
+};
+
+const getSwishQrCodeFromToken = async ({
+  token,
+  size = "300",
+  format = "png",
+  border = "0",
+}) => {
+  const body = JSON.stringify({ token, size, format, border });
+  const url = new URL("https://mpc.getswish.net/qrg-swish/api/v1/commerce");
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      url,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          if (res.statusCode !== 200) {
+            return reject(new Error(`QR request failed (${res.statusCode})`));
+          }
+          const buffer = Buffer.concat(chunks);
+          resolve(buffer.toString("base64"));
+        });
+      }
+    );
+
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+};
+
+const requestSwishPayment = async ({
+  baseUrl,
+  payeeAlias,
+  callbackUrl,
+  amount,
+  message,
+  certPfx,
+  certPassphrase,
+  callbackIdentifier,
+}) => {
+  const instructionUUID = createInstructionUUID();
   const payload = {
-    version: 1,
-    payee: { value: swishNumber || "", editable: false },
-    amount: Number.isFinite(amount)
-      ? { value: Number(amount.toFixed(2)), editable: false }
-      : undefined,
-    message: swishMessage
-      ? { value: swishMessage, editable: true }
-      : undefined,
+    payeeAlias,
+    currency: "SEK",
+    callbackUrl,
+    amount,
+    message,
+    callbackIdentifier,
   };
-  if (!payload.payee.value) return "";
-  if (!payload.amount) return "";
-  if (!payload.message) delete payload.message;
-  const encoded = encodeURIComponent(JSON.stringify(payload));
-  return `swish://payment?data=${encoded}`;
+  const body = JSON.stringify(payload);
+  const url = new URL(
+    `/swish-cpcapi/api/v2/paymentrequests/${instructionUUID}`,
+    baseUrl
+  );
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      url,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+        pfx: certPfx,
+        passphrase: certPassphrase,
+      },
+      (res) => {
+        let responseBody = "";
+        res.on("data", (chunk) => {
+          responseBody += chunk;
+        });
+        res.on("end", () => {
+          if (res.statusCode !== 201) {
+            let message = responseBody || "Swish request failed";
+            try {
+              const parsed = JSON.parse(responseBody || "{}");
+              if (Array.isArray(parsed)) {
+                message = parsed.map((item) => item.errorMessage).filter(Boolean).join(", ");
+              } else if (parsed?.errorMessage) {
+                message = parsed.errorMessage;
+              }
+            } catch (error) {
+              // ignore JSON parse errors and use raw response body
+            }
+            return reject(new Error(message));
+          }
+
+          const token = res.headers?.paymentrequesttoken;
+          if (!token) {
+            return reject(new Error("Missing paymentrequesttoken header"));
+          }
+          resolve({
+            id: instructionUUID,
+            token,
+            location: res.headers?.location || "",
+          });
+        });
+      }
+    );
+
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
 };
 
 exports.handler = async (event) => {
@@ -111,12 +219,6 @@ exports.handler = async (event) => {
   const swishNumber = payload.swishNumber || "";
   const swishName = payload.swishName || "";
   const swishMessage = payload.swishMessage || "";
-  const swishLink = buildSwishLink({
-    amount,
-    swishNumber,
-    swishMessage,
-    swishLink: payload.swishLink || "",
-  });
 
   if (!recipients.length) {
     return {
@@ -128,6 +230,69 @@ exports.handler = async (event) => {
   const subjectName = swishName ? ` from ${swishName}` : "";
   const subject = `Swish payment request${subjectName}`;
 
+  const swishBaseUrl = process.env.SWISH_BASE_URL || "https://mss.cpc.getswish.net";
+  const swishPayeeAlias = process.env.SWISH_PAYEE_ALIAS || "";
+  const swishCallbackUrl = process.env.SWISH_CALLBACK_URL || "";
+  const swishCertPfx = process.env.SWISH_CERT_PFX_BASE64
+    ? Buffer.from(process.env.SWISH_CERT_PFX_BASE64, "base64")
+    : null;
+  const swishCertPassphrase = process.env.SWISH_CERT_PASSPHRASE || "";
+
+  if (!swishPayeeAlias || !swishCallbackUrl || !swishCertPfx) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error:
+          "Missing SWISH_PAYEE_ALIAS, SWISH_CALLBACK_URL, or SWISH_CERT_PFX_BASE64",
+      }),
+    };
+  }
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Amount must be a positive number" }),
+    };
+  }
+
+  let paymentRequest = null;
+  try {
+    paymentRequest = await requestSwishPayment({
+      baseUrl: swishBaseUrl,
+      payeeAlias: swishPayeeAlias,
+      callbackUrl: swishCallbackUrl,
+      amount: amount.toFixed(2),
+      message: swishMessage ? swishMessage.slice(0, 50) : "",
+      certPfx: swishCertPfx,
+      certPassphrase: swishCertPassphrase,
+      callbackIdentifier: randomUUID(),
+    });
+  } catch (error) {
+    return {
+      statusCode: 502,
+      body: JSON.stringify({ error: error.message || "Swish request failed" }),
+    };
+  }
+
+  const swishLink = buildPaymentRequestLink({
+    token: paymentRequest.token,
+    callbackUrl: swishCallbackUrl,
+  });
+  let qrImageBase64 = "";
+  try {
+    qrImageBase64 = await getSwishQrCodeFromToken({
+      token: paymentRequest.token,
+      size: "320",
+      format: "png",
+      border: "0",
+    });
+  } catch (error) {
+    return {
+      statusCode: 502,
+      body: JSON.stringify({ error: error.message || "Failed to generate QR" }),
+    };
+  }
+
   const html = buildEmailHtml({
     amount,
     perPerson,
@@ -135,10 +300,13 @@ exports.handler = async (event) => {
     swishName,
     swishMessage,
     swishLink,
+    requestId: paymentRequest.id,
+    qrImageBase64,
   });
 
   const text = [
     "Swish payment request",
+    "Scan the QR code in this email with the Swish app.",
     swishName ? `From: ${swishName}` : null,
     Number.isFinite(amount) ? `Total: ${amount.toFixed(2)} SEK` : null,
     Number.isFinite(perPerson)
@@ -147,6 +315,7 @@ exports.handler = async (event) => {
     swishNumber ? `Swish number: ${swishNumber}` : null,
     swishMessage ? `Message: ${swishMessage}` : null,
     swishLink ? `Pay: ${swishLink}` : null,
+    paymentRequest?.id ? `Request ID: ${paymentRequest.id}` : null,
   ]
     .filter(Boolean)
     .join("\n");
