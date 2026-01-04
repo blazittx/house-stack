@@ -26,32 +26,9 @@ export const getWidgetMinSize = (widgetType) => {
   // Minimum sizes in grid units (width, height)
   // These are based on content needs: headers, text, lists, etc.
   const minSizesInGridUnits = {
-    profile: { width: 2, height: 2 },
-    about: { width: 2, height: 2 },
-    skills: { width: 2, height: 2 },
-    contact: { width: 2, height: 2 },
-    games: { width: 2, height: 2 },
-    visitors: { width: 2, height: 2 },
-    motd: { width: 2, height: 2 },
-    time: { width: 2, height: 2 },
-    github: { width: 2, height: 2 },
-    apikey: { width: 2, height: 2 },
-    "single-game": { width: 2, height: 2 },
-    "profile-picture": { width: 2, height: 2 },
-    "back-button": { width: 2, height: 2 },
-    "game-info": { width: 2, height: 2 },
-    "game-description": { width: 2, height: 2 },
-    "game-image": { width: 2, height: 2 },
-    "game-details": { width: 2, height: 2 },
-    "game-development-info": { width: 2, height: 2 },
-    heartbeat: { width: 2, height: 2 },
-    cv: { width: 2, height: 2 },
-    experience: { width: 2, height: 2 },
-    education: { width: 2, height: 2 },
-    projects: { width: 2, height: 2 },
-    "technical-skills": { width: 2, height: 2 },
-    languages: { width: 2, height: 2 },
-    certifications: { width: 2, height: 2 },
+    "split-amount": { width: 6, height: 4 },
+    "swish-details": { width: 6, height: 4 },
+    "recipient-emails": { width: 6, height: 5 },
   };
 
   const gridUnits = minSizesInGridUnits[widgetType] || { width: 2, height: 2 };

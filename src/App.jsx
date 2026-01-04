@@ -4,35 +4,25 @@ import { useWidgets, componentMap } from './hooks/useWidgets'
 import { useDragAndResize } from './hooks/useDragAndResize'
 import { useAutosort } from './hooks/useAutosort'
 import { useContextMenu } from './hooks/useContextMenu'
-import { useView } from './hooks/useView'
 import { useToast } from './hooks/useToast'
 import { usePageTransition } from './hooks/usePageTransition'
 import ContextMenu from './components/WidgetSystem/ContextMenu'
 import GridBackground from './components/WidgetSystem/GridBackground'
 import GridMask from './components/WidgetSystem/GridMask'
 import WidgetContainer from './components/WidgetSystem/WidgetContainer'
-import GameDetailView from './components/GameDetailView'
-import CVDetailView from './components/CVDetailView'
 import Toaster from './components/Toaster'
 import { getWidgetMinSize, GRID_SIZE, WIDGET_PADDING } from './constants/grid'
-import { GAME_IDS } from './constants/games'
 import { getUsableGridWidth, getUsableGridHeight } from './utils/grid'
 import { snapToGrid, snapSizeToGrid, constrainToViewport, constrainSizeToViewport, calculateCenterOffset } from './utils/grid'
 import { findNearestValidPosition } from './utils/collision'
 import { GRID_OFFSET_X, GRID_OFFSET_Y } from './constants/grid'
 import { DEFAULT_HOMEPAGE_LAYOUT, DEFAULT_HOMEPAGE_LAYOUT_MOBILE } from './utils/setDefaultLayouts'
 import { isMobile } from './utils/mobile'
-import ProfileWidget from './components/ProfileWidget'
-import AboutWidget from './components/AboutWidget'
-import SkillsWidget from './components/SkillsWidget'
-import ContactWidget from './components/ContactWidget'
-import GamesWidget from './components/GamesWidget'
 
 function App() {
-  const { currentView, selectedGame, navigateToGameDetail: originalNavigateToGameDetail, navigateToMain: originalNavigateToMain, navigateToCV: originalNavigateToCV, isLoading } = useView()
+  const currentView = 'main'
   const [widgets, setWidgets] = useWidgets('main')
-  const { transition, animateInitial, animateWidgetsIn } = usePageTransition()
-  const previousViewRef = useRef(currentView)
+  const { animateInitial, animateWidgetsIn } = usePageTransition()
   const isInitialMountRef = useRef(true)
   
   // Ensure widgets is always an array
@@ -82,15 +72,7 @@ function App() {
                   return null
                 }
                 
-                // Initialize default settings for widgets that need them
-                let settings = widget.settings || {}
-                if (widget.type === 'single-game' && (!settings.gameId || !GAME_IDS.includes(settings.gameId))) {
-                  settings = { gameId: GAME_IDS[0] }
-                }
-                // Initialize expandable settings
-                if (widget.type === 'profile-picture' && !settings.expandable) {
-                  settings = { ...settings, expandable: true, expandScaleX: 2, expandScaleY: 2 }
-                }
+                const settings = widget.settings || {}
                 
                 // Use EXACT saved sizes and positions from default layout - don't constrain or modify
                 const finalWidth = typeof widget.width === 'number' && widget.width > 0 ? widget.width : getWidgetMinSize(widget.type).width
@@ -532,15 +514,7 @@ function App() {
               return null
             }
             
-            // Initialize default settings for widgets that need them
-            let settings = widget.settings || {}
-            if (widget.type === 'single-game' && (!settings.gameId || !GAME_IDS.includes(settings.gameId))) {
-              settings = { gameId: GAME_IDS[0] }
-            }
-            // Initialize expandable settings
-            if (widget.type === 'profile-picture' && !settings.expandable) {
-              settings = { ...settings, expandable: true, expandScaleX: 2, expandScaleY: 2 }
-            }
+            const settings = widget.settings || {}
             
             // Preserve EXACT saved sizes and positions - don't modify them at all
             // Only ensure they're valid numbers
@@ -583,89 +557,60 @@ function App() {
     const baseX = snapToGrid(100, GRID_OFFSET_X)
     const baseY = snapToGrid(100, GRID_OFFSET_Y)
     
-    const profileSize = getWidgetMinSize('profile')
-    const profileWidth = snapSizeToGrid(profileSize.width)
-    const profileHeight = snapSizeToGrid(profileSize.height)
+    const splitSize = getWidgetMinSize('split-amount')
+    const splitWidth = snapSizeToGrid(splitSize.width)
+    const splitHeight = snapSizeToGrid(splitSize.height)
     
-    const aboutSize = getWidgetMinSize('about')
-    const aboutWidth = snapSizeToGrid(aboutSize.width)
-    const aboutHeight = snapSizeToGrid(aboutSize.height)
+    const swishSize = getWidgetMinSize('swish-details')
+    const swishWidth = snapSizeToGrid(swishSize.width)
+    const swishHeight = snapSizeToGrid(swishSize.height)
     
-    const skillsSize = getWidgetMinSize('skills')
-    const skillsWidth = snapSizeToGrid(skillsSize.width)
-    const skillsHeight = snapSizeToGrid(skillsSize.height)
+    const recipientsSize = getWidgetMinSize('recipient-emails')
+    const recipientsWidth = snapSizeToGrid(recipientsSize.width)
+    const recipientsHeight = snapSizeToGrid(recipientsSize.height)
     
-    const contactSize = getWidgetMinSize('contact')
-    const contactWidth = snapSizeToGrid(contactSize.width)
-    const contactHeight = snapSizeToGrid(contactSize.height)
+    const swishX = baseX + splitWidth + GRID_SIZE
+    const swishXSnapped = snapToGrid(swishX, GRID_OFFSET_X)
     
-    const gamesSize = getWidgetMinSize('games')
-    const gamesWidth = snapSizeToGrid(gamesSize.width)
-    const gamesHeight = snapSizeToGrid(gamesSize.height)
-    
-    const aboutX = baseX + profileWidth + GRID_SIZE
-    const aboutXSnapped = snapToGrid(aboutX, GRID_OFFSET_X)
-    
-    const skillsY = baseY + profileHeight + GRID_SIZE
-    const skillsYSnapped = snapToGrid(skillsY, GRID_OFFSET_Y)
-    
-    const skillsX = aboutXSnapped
-    const contactX = skillsX
-    const contactY = skillsYSnapped + skillsHeight + GRID_SIZE
-    const contactYSnapped = snapToGrid(contactY, GRID_OFFSET_Y)
-    
-    const gamesX = baseX
-    const gamesXSnapped = snapToGrid(gamesX, GRID_OFFSET_X)
-    const gamesY = skillsYSnapped
-    const gamesYSnapped = snapToGrid(gamesY, GRID_OFFSET_Y)
+    const recipientsY = baseY + splitHeight + GRID_SIZE
+    const recipientsYSnapped = snapToGrid(recipientsY, GRID_OFFSET_Y)
     
     const defaultWidgets = [
       {
-        id: 'profile',
-        type: 'profile',
+        id: 'split-amount',
+        type: 'split-amount',
         x: baseX,
         y: baseY,
-        width: profileWidth,
-        height: profileHeight,
-        component: ProfileWidget,
+        width: splitWidth,
+        height: splitHeight,
+        component: componentMap['split-amount'],
         locked: false,
-        pinned: false
+        pinned: true,
+        settings: { amount: '' }
       },
       {
-        id: 'about',
-        type: 'about',
-        x: aboutXSnapped,
+        id: 'swish-details',
+        type: 'swish-details',
+        x: swishXSnapped,
         y: baseY,
-        width: aboutWidth,
-        height: aboutHeight,
-        component: AboutWidget
+        width: swishWidth,
+        height: swishHeight,
+        component: componentMap['swish-details'],
+        locked: false,
+        pinned: true,
+        settings: { swishNumber: '', swishName: '', swishMessage: '' }
       },
       {
-        id: 'skills',
-        type: 'skills',
-        x: skillsX,
-        y: skillsYSnapped,
-        width: skillsWidth,
-        height: skillsHeight,
-        component: SkillsWidget
-      },
-      {
-        id: 'contact',
-        type: 'contact',
-        x: contactX,
-        y: contactYSnapped,
-        width: contactWidth,
-        height: contactHeight,
-        component: ContactWidget
-      },
-      {
-        id: 'games',
-        type: 'games',
-        x: gamesXSnapped,
-        y: gamesYSnapped,
-        width: gamesWidth,
-        height: gamesHeight,
-        component: GamesWidget
+        id: 'recipient-emails',
+        type: 'recipient-emails',
+        x: baseX,
+        y: recipientsYSnapped,
+        width: recipientsWidth,
+        height: recipientsHeight,
+        component: componentMap['recipient-emails'],
+        locked: false,
+        pinned: true,
+        settings: { emails: '' }
       }
     ]
     
@@ -693,9 +638,7 @@ function App() {
     // Use flushSync to ensure the state update happens synchronously
     flushSync(() => {
       setWidgets(prev => {
-        // For widgets that allow multiple instances (like single-game), generate unique IDs
-        // For other widgets, check if they already exist
-        const allowsMultipleInstances = widgetType === 'single-game'
+        const allowsMultipleInstances = false
         
         if (!allowsMultipleInstances) {
           const existingWidget = prev.find(w => (w.type === widgetType || w.id === widgetType))
@@ -766,10 +709,7 @@ function App() {
         )
 
         // Initialize settings based on widget type
-        let settings = {}
-        if (widgetType === 'single-game') {
-          settings = { gameId: GAME_IDS[0] } // Default to first game
-        }
+        const settings = {}
 
         // Create new widget - ensure all properties are set and create a new object
         const newWidget = {
@@ -821,53 +761,6 @@ function App() {
     openContextMenu(e, widgetId)
   }
 
-  // Wrapped navigation functions with transitions
-  const navigateToGameDetail = useCallback(async (game) => {
-    if (previousViewRef.current === 'main') {
-      const animateIn = await transition()
-      originalNavigateToGameDetail(game)
-      await animateIn()
-    } else {
-      originalNavigateToGameDetail(game)
-    }
-    previousViewRef.current = 'game-detail'
-  }, [transition, originalNavigateToGameDetail])
-
-  const navigateToMain = useCallback(async () => {
-    if (previousViewRef.current === 'game-detail' || previousViewRef.current === 'cv-detail') {
-      const animateIn = await transition()
-      originalNavigateToMain()
-      await animateIn()
-    } else {
-      originalNavigateToMain()
-    }
-    previousViewRef.current = 'main'
-  }, [transition, originalNavigateToMain])
-
-  const navigateToCV = useCallback(async () => {
-    if (previousViewRef.current === 'main') {
-      const animateIn = await transition()
-      originalNavigateToCV()
-      await animateIn()
-    } else {
-      originalNavigateToCV()
-    }
-    previousViewRef.current = 'cv-detail'
-  }, [transition, originalNavigateToCV])
-
-  // Handle view changes for transitions
-  useEffect(() => {
-    if (previousViewRef.current !== currentView) {
-      // View changed, but we already handled the transition in navigation functions
-      // This is for browser back/forward navigation
-      previousViewRef.current = currentView
-      // Animate widgets in after a brief delay
-      setTimeout(() => {
-        animateWidgetsIn()
-      }, 100)
-    }
-  }, [currentView, animateWidgetsIn])
-
   // Initial animation on mount
   useEffect(() => {
     if (isInitialMountRef.current && widgets.length > 0) {
@@ -889,34 +782,6 @@ function App() {
       document.removeEventListener('mouseup', handleGlobalUp)
     }
   }, [handleMouseMove, handleMouseUp])
-
-  // Show loading state while fetching game from URL
-  if (isLoading) {
-    return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'canvasText',
-        fontSize: '1rem',
-        opacity: 0.7
-      }}>
-        Loading...
-      </div>
-    )
-  }
-
-  // Show game detail view if selected
-  if (currentView === 'game-detail' && selectedGame) {
-    return <GameDetailView game={selectedGame} onBack={navigateToMain} />
-  }
-
-  // Show CV detail view if selected
-  if (currentView === 'cv-detail') {
-    return <CVDetailView onBack={navigateToMain} />
-  }
 
   const mobile = isMobile()
   
@@ -959,8 +824,6 @@ function App() {
         resizeStateRef={resizeStateRef}
         onMouseDown={handleMouseDownWithContext}
         wasLastInteractionDrag={wasLastInteractionDrag}
-        onGameClick={navigateToGameDetail}
-        onCVClick={navigateToCV}
         centerOffset={centerOffset}
         onUpdateWidgetSettings={updateWidgetSettings}
         onToggleWidgetExpand={toggleWidgetExpand}

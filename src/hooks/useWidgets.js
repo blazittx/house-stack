@@ -1,41 +1,18 @@
 import { useState } from 'react'
-import { GAME_IDS } from '../constants/games'
 import { snapToGrid, snapSizeToGrid, constrainToViewport } from '../utils/grid'
 import { getWidgetMinSize } from '../constants/grid'
 import { GRID_OFFSET_X, GRID_OFFSET_Y } from '../constants/grid'
 import { DEFAULT_HOMEPAGE_LAYOUT, DEFAULT_HOMEPAGE_LAYOUT_MOBILE } from '../utils/setDefaultLayouts'
 import { isMobile } from '../utils/mobile'
-import ProfileWidget from '../components/ProfileWidget'
-import AboutWidget from '../components/AboutWidget'
-import SkillsWidget from '../components/SkillsWidget'
-import ContactWidget from '../components/ContactWidget'
-import GamesWidget from '../components/GamesWidget'
-import VisitorsWidget from '../components/VisitorsWidget'
-import MessageOfTheDayWidget from '../components/MessageOfTheDayWidget'
-import TimeWidget from '../components/TimeWidget'
-import GitHubActivityWidget from '../components/GitHubActivityWidget'
-import ApiKeyWidget from '../components/ApiKeyWidget'
-import SingleGameWidget from '../components/SingleGameWidget'
-import ProfilePictureWidget from '../components/ProfilePictureWidget'
-import HeartbeatWidget from '../components/HeartbeatWidget'
-import CVWidget from '../components/CVWidget'
+import AmountSplitWidget from '../components/AmountSplitWidget'
+import SwishDetailsWidget from '../components/SwishDetailsWidget'
+import RecipientEmailsWidget from '../components/RecipientEmailsWidget'
 
 // Component mapping - exported for use in other components
 export const componentMap = {
-  profile: ProfileWidget,
-  about: AboutWidget,
-  skills: SkillsWidget,
-  contact: ContactWidget,
-  games: GamesWidget,
-  visitors: VisitorsWidget,
-  motd: MessageOfTheDayWidget,
-  time: TimeWidget,
-  github: GitHubActivityWidget,
-  apikey: ApiKeyWidget,
-  'single-game': SingleGameWidget,
-  'profile-picture': ProfilePictureWidget,
-  heartbeat: HeartbeatWidget,
-  cv: CVWidget
+  'split-amount': AmountSplitWidget,
+  'swish-details': SwishDetailsWidget,
+  'recipient-emails': RecipientEmailsWidget,
 }
 
 export const useWidgets = (view = 'main') => {
@@ -65,19 +42,7 @@ export const useWidgets = (view = 'main') => {
               return null
             }
             
-            // Initialize default settings for widgets that need them
-            let settings = widget.settings || {}
-            if (widget.type === 'single-game' && (!settings.gameId || !GAME_IDS.includes(settings.gameId))) {
-              settings = { gameId: GAME_IDS[0] }
-            }
-            // Initialize expandable settings
-            if (widget.type === 'profile-picture' && !settings.expandable) {
-              settings = { ...settings, expandable: true, expandScaleX: 2, expandScaleY: 2 }
-            }
-            // Initialize expandable settings
-            if (widget.type === 'profile-picture' && !settings.expandable) {
-              settings = { ...settings, expandable: true, expandScaleX: 2, expandScaleY: 2 }
-            }
+            const settings = widget.settings || {}
             
             // Preserve EXACT saved sizes and positions - don't modify them at all
             // Only ensure they're valid numbers
@@ -106,13 +71,13 @@ export const useWidgets = (view = 'main') => {
       // Return minimal safe layout
       return [
         {
-          id: 'profile',
-          type: 'profile',
+          id: 'split-amount',
+          type: 'split-amount',
           x: snapToGrid(100, GRID_OFFSET_X),
           y: snapToGrid(100, GRID_OFFSET_Y),
           width: snapSizeToGrid(270),
           height: snapSizeToGrid(180),
-          component: ProfileWidget,
+          component: AmountSplitWidget,
           locked: false,
           pinned: false
         }

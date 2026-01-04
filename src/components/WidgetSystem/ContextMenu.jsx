@@ -81,7 +81,7 @@ export default function ContextMenu({ contextMenu, widgets, onToggleLock, onTogg
   const availableWidgetTypes = Object.keys(activeComponentMap)
   
   // Widgets that allow multiple instances
-  const allowsMultipleInstances = (type) => type === 'single-game'
+  const allowsMultipleInstances = () => false
   
   // Get widgets currently on the grid
   const existingWidgetTypes = new Set(widgets.map(w => w.type || w.id))
