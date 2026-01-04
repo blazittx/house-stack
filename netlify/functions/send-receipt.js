@@ -55,6 +55,15 @@ const buildEmailHtml = ({
   `;
 };
 
+const buildSwishLink = ({ amount, swishNumber, swishMessage }) => {
+  const params = new URLSearchParams();
+  if (swishNumber) params.set("payee", swishNumber);
+  if (Number.isFinite(amount)) params.set("amount", amount.toFixed(2));
+  if (swishMessage) params.set("message", swishMessage);
+  const query = params.toString();
+  return query ? `swish://payment?${query}` : "swish://payment";
+};
+
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return {
@@ -88,7 +97,7 @@ exports.handler = async (event) => {
   const swishNumber = payload.swishNumber || "";
   const swishName = payload.swishName || "";
   const swishMessage = payload.swishMessage || "";
-  const swishLink = payload.swishLink || "";
+  const swishLink = payload.swishLink || buildSwishLink({ amount, swishNumber, swishMessage });
 
   if (!recipients.length) {
     return {
